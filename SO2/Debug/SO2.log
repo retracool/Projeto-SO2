@@ -1,29 +1,17 @@
 ﻿  arbitro.c
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(83,45): warning C4133: 'função': tipos incompatíveis - de 'char [19]' para 'LPCWSTR'
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(92,36): warning C4133: 'função': tipos incompatíveis - de 'char [19]' para 'LPCWSTR'
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(111,17): warning C4133: 'função': tipos incompatíveis - de 'char [64]' para 'wchar_t *'
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(120,9): warning C4133: 'função': tipos incompatíveis - de 'char [25]' para 'LPCWSTR'
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(133,14): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 1 tem o tipo 'char *'
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(133,14):
+C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 2 tem o tipo 'char *'
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       considere usar '%hs' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(133,14):
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       considere usar '%Ts' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(133,14):
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       este aviso baseia-se em semântica não padrão usada pelo Visual C++
   
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 2 tem o tipo 'char *'
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
+C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 3 tem o tipo 'char *'
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       considere usar '%hs' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       considere usar '%Ts' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
-      este aviso baseia-se em semântica não padrão usada pelo Visual C++
-  
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 3 tem o tipo 'char *'
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
-      considere usar '%hs' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
-      considere usar '%Ts' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(153,22):
+      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
       este aviso baseia-se em semântica não padrão usada pelo Visual C++
   

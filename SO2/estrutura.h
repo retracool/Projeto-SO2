@@ -3,6 +3,7 @@
 #define ESTRUTURA_H
 
 #include <windows.h>
+#include <tchar.h>
 
 #define MAX_USERNAME        32
 #define MAX_PALAVRA         64
@@ -26,19 +27,24 @@ typedef enum {
     MSG_RESPOSTA     // resposta geral
 } TipoMensagem;
 
-// Formato de cada mensagem trocada por pipe
+// Estrutura de mensagem Unicode com TCHAR
 typedef struct {
     TipoMensagem tipo;
-    char         username[MAX_USERNAME];
-    char         conteudo[MAX_PALAVRA];
-    int          pontuacao;  // usado em respostas
+    TCHAR        username[MAX_USERNAME];
+    TCHAR        conteudo[MAX_PALAVRA];
+    int          pontuacao;
 } Mensagem;
 
-// Layout da memória partilhada
+// Estrutura de memória partilhada
 typedef struct {
-    char letras[MAXLETRAS];            // vetor de letras visíveis ('_' = vazio)
-    int  estado[MAXLETRAS];            // 0=vazio, 1=ocupado (opcional)
-    char ultima_palavra[MAX_PALAVRA];  // última palavra correta
+    TCHAR letras[MAXLETRAS];
+    int   estado[MAXLETRAS];
+    TCHAR ultima_palavra[MAX_PALAVRA];
 } MemoriaPartilhada;
 
+// Parâmetros passados à thread que atende cada cliente
+typedef struct {
+    HANDLE             hPipe;  // handle do named pipe
+    MemoriaPartilhada* mem;    // ponteiro para a memória partilhada
+} CLIENT_PARAM;
 #endif // ESTRUTURA_H
