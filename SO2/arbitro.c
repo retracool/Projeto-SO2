@@ -1,4 +1,6 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+﻿
+#pragma comment(lib, "Advapi32.lib")
+#define _CRT_SECURE_NO_WARNINGS
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -214,41 +216,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
     DWORD bytes;
     int pontuacao = 0; // Pontuação do jogador
 
-    // Ler a primeira mensagem do cliente e processar a entrada
-    if (ReadFile(hPipe, &msg, sizeof(msg), &bytes, NULL)) {
-        _tprintf(TEXT("[DEBUG] Recebido mensagem do tipo: %d de: %s\n"), msg.tipo, msg.username);
-        
-        // Processar a mensagem inicial (MSG_ENTRAR)
-        ZeroMemory(&resp, sizeof(resp));
-        _tcscpy(resp.username, msg.username);
-        
-        if (msg.tipo == MSG_ENTRAR) {
-            resp.tipo = MSG_SUCESSO;
-            
-            _tprintf(TEXT("[DEBUG] Tentativa de conexão: %s\n"), msg.username);
-            int slotJogador = AdicionarJogador(mem, msg.username);
-            
-            if (slotJogador >= 0) {
-                _tcscpy(resp.conteudo, TEXT("Bem-vindo ao jogo!"));
-                _tprintf(TEXT("[SISTEMA] Jogador %s conectado com sucesso (slot %d)\n"), 
-                        msg.username, slotJogador);
-            } else if (slotJogador == -1) {
-                resp.tipo = MSG_ERRO;
-                _tcscpy(resp.conteudo, TEXT("Nome de utilizador já existe!"));
-                _tprintf(TEXT("[SISTEMA] Conexão rejeitada: Nome %s já existe\n"), msg.username);
-            } else {
-                resp.tipo = MSG_ERRO;
-                _tcscpy(resp.conteudo, TEXT("Servidor cheio!"));
-                _tprintf(TEXT("[SISTEMA] Conexão rejeitada: Servidor cheio\n"));
-            }
-            
-            WriteFile(hPipe, &resp, sizeof(resp), &bytes, NULL);
-        }
-    } else {
-        _tprintf(TEXT("[ERRO] Falha ao ler do pipe: %d\n"), GetLastError());
-        goto cleanup;
-    }
-
+    
     while (ReadFile(hPipe, &msg, sizeof(msg), &bytes, NULL) && bytes == sizeof(msg))
     {
         ZeroMemory(&resp, sizeof(resp));
@@ -488,6 +456,11 @@ int contarJogadoresAtivos()
     LeaveCriticalSection(&csJogadores);
     return contador;
 }
+
+
+
+// MAIN
+
 
 int _tmain(int argc, LPTSTR argv[])
 {

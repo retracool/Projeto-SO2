@@ -1,17 +1,2 @@
-﻿  arbitro.c
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 2 tem o tipo 'char *'
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      considere usar '%hs' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      considere usar '%Ts' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      este aviso baseia-se em semântica não padrão usada pelo Visual C++
-  
-C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22): warning C4477: 'wprintf': a cadeia de formato '%s' requer um argumento do tipo 'unsigned short *', mas um argumento variadic 3 tem o tipo 'char *'
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      considere usar '%hs' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      considere usar '%Ts' na cadeia de formato
-      C:\Users\simoe\source\repos\SO2\SO2\arbitro.c(157,22):
-      este aviso baseia-se em semântica não padrão usada pelo Visual C++
-  
+﻿  jogoui.c
+C:\Users\simoe\source\repos\SO2\SO2\jogoui.c(84,44): warning C4133: 'função': tipos incompatíveis - de 'TCHAR *' para 'LPCCH'

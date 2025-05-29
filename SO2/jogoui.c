@@ -14,7 +14,34 @@
 #include <string.h>
 #include "estrutura.h"
 
+static HANDLE g_hPipe = INVALID_HANDLE_VALUE;
+static TCHAR  g_username[MAX_USERNAME];
+
+
+BOOL WINAPI CtrlHandler(DWORD ctrlType) {
+    if (ctrlType == CTRL_C_EVENT || ctrlType == CTRL_CLOSE_EVENT) {
+        if (g_hPipe != INVALID_HANDLE_VALUE) {
+            Mensagem m = { MSG_SAIR, {0}, {0}, 0 };
+            _tcsncpy(m.username, g_username, MAX_USERNAME - 1);
+            DWORD written;
+            WriteFile(g_hPipe, &m, sizeof(m), &written, NULL);
+            // opcional: esperar um pouco para garantir envio
+            Sleep(100);
+            CloseHandle(g_hPipe);
+        }
+        ExitProcess(0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+
 int _tmain(int argc, LPTSTR argv[]) {
+
+    // logo no início do _tmain(...)
+    SetConsoleCtrlHandler(CtrlHandler, TRUE);
+
+
     // Configura consola Unicode
 #ifdef UNICODE
     _setmode(_fileno(stdin), _O_WTEXT);
@@ -32,7 +59,8 @@ int _tmain(int argc, LPTSTR argv[]) {
     TCHAR username[MAX_USERNAME];
     _tcsncpy(username, argv[1], MAX_USERNAME - 1);
     username[MAX_USERNAME - 1] = TEXT('\0');
-
+    _tcsncpy(g_username, username, MAX_USERNAME - 1);
+    g_username[MAX_USERNAME - 1] = TEXT('\0');
     // Aguarda pipe
     if (!WaitNamedPipe(ARBITRO_PIPE_NAME, NMPWAIT_WAIT_FOREVER)) {
         _tprintf(TEXT("[JOGADOR] Árbitro não está ativo.\n"));
@@ -47,6 +75,38 @@ int _tmain(int argc, LPTSTR argv[]) {
     );
     if (hPipe == INVALID_HANDLE_VALUE) {
         _tprintf(TEXT("[JOGADOR] Falha ao conectar ao árbitro.\n"));
+        return 1;
+    }
+
+    // ISTO É PARA CASO SAIA BRUTAMENTE O JOGADOR
+    g_hPipe = hPipe;
+   
+
+    // Envia MSG_ENTRAR
+    Mensagem msg = { 0 };
+    msg.tipo = MSG_ENTRAR;
+    _tcsncpy(msg.username, username, MAX_USERNAME - 1);
+    DWORD written;
+    WriteFile(hPipe, &msg, sizeof(msg), &written, NULL);
+
+    _tprintf(TEXT("DEBUG: MSG_ENTRAR = %d\n"), MSG_ENTRAR);
+
+	// Recebe resposta para ver se foi aceite ou nao pea o árbitro
+
+    Mensagem resp;
+    DWORD readBytes;
+    if (ReadFile(hPipe, &resp, sizeof(resp), &readBytes, NULL) && readBytes == sizeof(resp)) {
+        _tprintf(TEXT("[ÁRBITRO] %s\n"), resp.conteudo);
+        if (resp.tipo != MSG_SUCESSO) {
+            CloseHandle(hPipe);
+            return 0;   // ou exit(0);
+        }
+        if (resp.tipo == MSG_PONTUACAO) {
+            _tprintf(TEXT(" (pontos: %d)"), resp.pontuacao);
+        }
+    }
+    else {
+        _tprintf(TEXT("[JOGADOR] Conexão encerrada pelo árbitro.\n"));
         return 1;
     }
 
@@ -71,6 +131,8 @@ int _tmain(int argc, LPTSTR argv[]) {
         CloseHandle(hMap);
         return 1;
     }
+
+
     // 4) Lê e imprime as letras visíveis
     _tprintf(TEXT("Letras visíveis:\n"));
     for (int i = 0; i < MAXLETRAS; ++i) {
@@ -92,31 +154,11 @@ int _tmain(int argc, LPTSTR argv[]) {
     _tprintf(TEXT("\n"));
 
 
-    // Envia MSG_ENTRAR
-    Mensagem msg = { 0 };
-    msg.tipo = MSG_ENTRAR;
-    _tcsncpy(msg.username, username, MAX_USERNAME - 1);
-    DWORD written;
-    WriteFile(hPipe, &msg, sizeof(msg), &written, NULL);
-
-    _tprintf(TEXT("DEBUG: MSG_ENTRAR = %d\n"), MSG_ENTRAR);
-
-    // Recebe resposta
-    Mensagem resp;
-    DWORD readBytes;
-    if (ReadFile(hPipe, &resp, sizeof(resp), &readBytes, NULL) && readBytes == sizeof(resp)) {
-        _tprintf(TEXT("[ÁRBITRO] %s\n"), resp.conteudo);
-        if (resp.tipo == MSG_PONTUACAO) {
-            _tprintf(TEXT(" (pontos: %d)"), resp.pontuacao);
-        }
-    } else {
-        _tprintf(TEXT("[JOGADOR] Conexão encerrada pelo árbitro.\n"));
-        return 1;
-    }
-
+   
     // Loop de I/O
     TCHAR linha[256];
     BOOL running = TRUE;
+
     while (running && _fgetts(linha, 256, stdin)) {
         linha[_tcslen(linha) - 1] = TEXT('\0');
         if (linha[0] == TEXT('\0')) continue;
