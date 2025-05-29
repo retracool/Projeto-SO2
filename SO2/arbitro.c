@@ -1,5 +1,4 @@
-﻿
-#pragma comment(lib, "Advapi32.lib")
+﻿#pragma comment(lib, "Advapi32.lib")
 #define _CRT_SECURE_NO_WARNINGS
 #ifndef UNICODE
 #define UNICODE
@@ -18,12 +17,21 @@
 #include <io.h>
 #include "estrutura.h"
 
+#define MAX_WORDS 5005
+#define MAX_WORD_LENGTH 50
+
+// Dicionário global
+static TCHAR dictionary[MAX_WORDS][MAX_WORD_LENGTH];
+static int dictionarySize = 0;
+
+BOOL LoadDictionary(const TCHAR *filename);
+BOOL IsWordInDictionary(const TCHAR *word);
 int RITMO = 3;
 
 // Declaração do critical section global para jogadores
 CRITICAL_SECTION csJogadores;
 
-MemoriaPartilhada* g_mem = NULL;
+MemoriaPartilhada *g_mem = NULL;
 
 BOOL InitializeRegistry()
 {
@@ -74,7 +82,8 @@ void listPlayers(void)
             count++;
         }
     }
-    if (count == 0) {
+    if (count == 0)
+    {
         _tprintf(TEXT("Não há jogadores ativos no momento.\n"));
     }
     LeaveCriticalSection(&csJogadores);
@@ -83,13 +92,16 @@ BOOL excludePlayer(const TCHAR *username)
 {
     extern MemoriaPartilhada *g_mem;
     BOOL result = RemoverJogador(g_mem, username);
-    
-    if (result) {
+
+    if (result)
+    {
         _tprintf(TEXT("[ADMIN] excluir %s - jogador excluído com sucesso\n"), username);
-    } else {
+    }
+    else
+    {
         _tprintf(TEXT("[ADMIN] excluir %s - jogador não encontrado\n"), username);
     }
-    
+
     return result;
 }
 BOOL startBot(const TCHAR *botName)
@@ -197,7 +209,7 @@ DWORD WINAPI LetterThread(LPVOID p)
         }
         // se não houver slot livre, recicla posição 0
         mem->letras[0] = nova;
-mem->estado[0] = 1;
+        mem->estado[0] = 1;
     next:;
     }
     return 0;
@@ -216,7 +228,6 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
     DWORD bytes;
     int pontuacao = 0; // Pontuação do jogador
 
-    
     while (ReadFile(hPipe, &msg, sizeof(msg), &bytes, NULL) && bytes == sizeof(msg))
     {
         ZeroMemory(&resp, sizeof(resp));
@@ -226,19 +237,24 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
         {
         case MSG_ENTRAR:
             resp.tipo = MSG_SUCESSO;
-            
-            _tprintf(TEXT("[DEBUG] Tentativa de conexão: %s\n"), msg.username);
+
+            //_tprintf(TEXT("[DEBUG] Tentativa de conexão: %s\n"), msg.username);
             int slotJogador = AdicionarJogador(mem, msg.username);
-            
-            if (slotJogador >= 0) {
+
+            if (slotJogador >= 0)
+            {
                 _tcscpy(resp.conteudo, TEXT("Bem-vindo ao jogo!"));
-                _tprintf(TEXT("[SISTEMA] Jogador %s conectado com sucesso (slot %d)\n"), 
-                        msg.username, slotJogador);
-            } else if (slotJogador == -1) {
+                _tprintf(TEXT("[SISTEMA] Jogador %s conectado com sucesso (slot %d)\n"),
+                         msg.username, slotJogador);
+            }
+            else if (slotJogador == -1)
+            {
                 resp.tipo = MSG_ERRO;
                 _tcscpy(resp.conteudo, TEXT("Nome de utilizador já existe!"));
                 _tprintf(TEXT("[SISTEMA] Conexão rejeitada: Nome %s já existe\n"), msg.username);
-            } else {
+            }
+            else
+            {
                 resp.tipo = MSG_ERRO;
                 _tcscpy(resp.conteudo, TEXT("Servidor cheio!"));
                 _tprintf(TEXT("[SISTEMA] Conexão rejeitada: Servidor cheio\n"));
@@ -246,18 +262,34 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
             break;
 
         case MSG_PALAVRA:
+
+            // DEBUG: Mostra as letras disponíveis
+            _tprintf(TEXT("[DEBUG] Letras disponíveis: "));
+            for (int k = 0; k < MAXLETRAS; k++)
+            {
+                _tprintf(TEXT("'%c'(%d) "), mem->letras[k], (int)mem->letras[k]);
+            }
+            _tprintf(TEXT("\n"));
+            _tprintf(TEXT("[DEBUG] Palavra recebida: '%s'\n"), msg.conteudo);
+
             // Validar se a palavra pode ser formada com as letras disponíveis
             BOOL palavraValida = TRUE;
             TCHAR letrasTmp[MAXLETRAS];
-            memcpy(letrasTmp, mem->letras, MAXLETRAS);
+            memcpy(letrasTmp, mem->letras, MAXLETRAS * sizeof(TCHAR));
 
             for (int i = 0; msg.conteudo[i] != '\0'; i++)
             {
                 BOOL encontrou = FALSE;
+                TCHAR letraProcurada = _totupper(msg.conteudo[i]);
+                _tprintf(TEXT("[DEBUG] Procurando letra: '%c'(%d)\n"), letraProcurada, (int)letraProcurada);
+
                 for (int j = 0; j < MAXLETRAS; j++)
                 {
-                    if (_totupper(msg.conteudo[i]) == _totupper(letrasTmp[j]))
+                    //_tprintf(TEXT("[DEBUG] Comparando com '%c'(%d) na posição %d\n"),
+                    //         letrasTmp[j], (int)letrasTmp[j], j);
+                    if (letraProcurada == _totupper(letrasTmp[j]))
                     {
+                        _tprintf(TEXT("[DEBUG] Encontrou '%c' na posição %d\n"), letrasTmp[j], j);
                         letrasTmp[j] = '_'; // marca como usada
                         encontrou = TRUE;
                         break;
@@ -265,8 +297,25 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 }
                 if (!encontrou)
                 {
+                    _tprintf(TEXT("[DEBUG] Letra '%c' NÃO encontrada!\n"), letraProcurada);
                     palavraValida = FALSE;
                     break;
+                }
+            }
+
+            // Verifica se a palavra está no dicionário (se carregado)
+            if (palavraValida && dictionarySize > 0)
+            {
+                if (!IsWordInDictionary(msg.conteudo))
+                {
+                    _tprintf(TEXT("[DEBUG] Palavra '%s' não está no dicionário\n"), msg.conteudo);
+                    palavraValida = FALSE;
+                    resp.tipo = MSG_ERRO;
+                    _tcscpy(resp.conteudo, TEXT("Palavra não encontrada no dicionário!"));
+                }
+                else
+                {
+                    _tprintf(TEXT("[DEBUG] Palavra '%s' encontrada no dicionário\n"), msg.conteudo);
                 }
             }
 
@@ -293,7 +342,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 }
                 LeaveCriticalSection(&csJogadores);
             }
-            else
+            else if (resp.tipo != MSG_ERRO)
             {
                 resp.tipo = MSG_ERRO;
                 _tcscpy(resp.conteudo, TEXT("Palavra inválida!"));
@@ -311,8 +360,10 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
             EnterCriticalSection(&csJogadores);
             TCHAR buffer[256] = TEXT("");
             int count = 0;
-            for (int i = 0; i < MAX_JOGADORES; i++) {
-                if (mem->jogadores[i].ativo) {
+            for (int i = 0; i < MAX_JOGADORES; i++)
+            {
+                if (mem->jogadores[i].ativo)
+                {
                     TCHAR linha[64];
                     _stprintf(linha, TEXT("%s(%d pontos) "), mem->jogadores[i].username, mem->jogadores[i].pontuacao);
                     _tcscat(buffer, linha);
@@ -320,18 +371,21 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 }
             }
             LeaveCriticalSection(&csJogadores);
-            if (count == 0) {
+            if (count == 0)
+            {
                 _tcscpy(resp.conteudo, TEXT("Nenhum jogador ativo."));
-            } else {
+            }
+            else
+            {
                 _tcscpy(resp.conteudo, buffer);
             }
             break;
 
-        case MSG_SAIR: 
+        case MSG_SAIR:
             resp.tipo = MSG_SUCESSO;
             _tcscpy(resp.conteudo, TEXT("Até à próxima!"));
             WriteFile(hPipe, &resp, sizeof(resp), &bytes, NULL);
-            
+
             // Marcar jogador como inativo
             EnterCriticalSection(&csJogadores);
             for (int i = 0; i < MAX_JOGADORES; i++)
@@ -343,7 +397,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 }
             }
             LeaveCriticalSection(&csJogadores);
-            
+
             // Verificar se só resta 1 jogador
             if (contarJogadoresAtivos() <= 1)
             {
@@ -447,9 +501,9 @@ BOOL AtualizarPontuacao(MemoriaPartilhada *mem, const TCHAR *username, int novaP
 int contarJogadoresAtivos()
 {
     int contador = 0;
-    EnterCriticalSection(&csJogadores); 
+    EnterCriticalSection(&csJogadores);
     for (int i = 0; i < MAX_JOGADORES; i++)
-    { 
+    {
         if (g_mem->jogadores[i].ativo)
             contador++;
     }
@@ -457,107 +511,146 @@ int contarJogadoresAtivos()
     return contador;
 }
 
+BOOL LoadDictionary(const TCHAR *filename)
+{
+    FILE *file;
+#ifdef UNICODE
+    file = _wfopen(filename, L"r, ccs=UTF-8");
+#else
+    file = fopen(filename, "r");
+#endif
 
+    if (!file)
+    {
+        _tprintf(TEXT("[ERRO] Não foi possível abrir o dicionário: %s\n"), filename);
+        return FALSE;
+    }
+
+    dictionarySize = 0;
+    TCHAR line[MAX_WORD_LENGTH];
+
+    while (_fgetts(line, MAX_WORD_LENGTH, file) && dictionarySize < MAX_WORDS)
+    {
+        // Remove quebra de linha
+        size_t len = _tcslen(line);
+        if (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+        {
+            line[len - 1] = '\0';
+            len--;
+        }
+        if (len > 0 && (line[len - 1] == '\r'))
+        {
+            line[len - 1] = '\0';
+        }
+
+        // Converte para maiúsculas
+        for (int i = 0; line[i]; i++)
+        {
+            line[i] = _totupper(line[i]);
+        }
+
+        // Copia para o dicionário
+        _tcsncpy(dictionary[dictionarySize], line, MAX_WORD_LENGTH - 1);
+        dictionary[dictionarySize][MAX_WORD_LENGTH - 1] = '\0';
+        dictionarySize++;
+    }
+
+    fclose(file);
+    _tprintf(TEXT("[SISTEMA] Dicionário carregado: %d palavras\n"), dictionarySize);
+    return TRUE;
+}
+
+BOOL IsWordInDictionary(const TCHAR *word)
+{
+    TCHAR upperWord[MAX_WORD_LENGTH];
+    _tcsncpy(upperWord, word, MAX_WORD_LENGTH - 1);
+    upperWord[MAX_WORD_LENGTH - 1] = '\0';
+
+    // Converte para maiúsculas
+    for (int i = 0; upperWord[i]; i++)
+    {
+        upperWord[i] = _totupper(upperWord[i]);
+    }
+
+    _tprintf(TEXT("[DEBUG] Procurando '%s' no dicionário...\n"), upperWord);
+
+    // Pesquisa linear
+    for (int i = 0; i < dictionarySize; i++)
+    {
+        if (_tcscmp(dictionary[i], upperWord) == 0)
+        {
+            _tprintf(TEXT("[DEBUG] Palavra encontrada no índice %d\n"), i);
+            return TRUE;
+        }
+    }
+    _tprintf(TEXT("[DEBUG] Palavra não encontrada\n"));
+    return FALSE;
+}
 
 // MAIN
 
-
 int _tmain(int argc, LPTSTR argv[])
 {
-
-    // Inicializa o critical section global
     InitializeCriticalSection(&csJogadores);
 
-    // Configura consola Unicode
 #ifdef UNICODE
     _setmode(_fileno(stdin), _O_WTEXT);
     _setmode(_fileno(stdout), _O_WTEXT);
 #endif
 
-
     _ftprintf(stderr, TEXT("ADMIN ON.\n"));
 
     hShutdownEvent = CreateEvent(NULL, TRUE, FALSE, TEXT("Global\\SO2_ShutdownEvent"));
     if (!hShutdownEvent)
-    {
-        _tprintf(TEXT("[ERRO] não conseguiu criar o evento de shutdown\n"));
         return 1;
-    }
 
     if (!InitializeRegistry())
-    {
-        _tprintf(TEXT("[ERRO] Falha ao inicializar Registry\n"));
         return 1;
-    }
 
-    // --- 2) Lança a thread de adm (Com esta thread é possivel escrever comandos na consola)
+    if (!LoadDictionary(TEXT("5000-more-common.txt")))
+        _tprintf(TEXT("[AVISO] Continuando sem dicionário...\n"));
+
     DWORD adminTid;
     HANDLE hAdminThread = CreateThread(
-        NULL,        // Segurança padrão
-        0,           // Tamanho da stack
-        AdminThread, // Função
-        NULL,        // Parâmetro
-        0,           // Flags
-        &adminTid);
+        NULL, 0, AdminThread, NULL, 0, &adminTid);
 
     if (!hAdminThread)
-    {
-        _tprintf(TEXT("[ERRO] não conseguiu criar AdminThread\n"));
         return 1;
-    }
 
-    // Garante instância única do árbitro
     HANDLE hMutex = CreateMutex(NULL, TRUE, ARBITRO_MUTEX_NAME);
     if (!hMutex || GetLastError() == ERROR_ALREADY_EXISTS)
-    {
-        _tprintf(TEXT("[ERRO] Já existe uma instância do árbitro.\n"));
         return 1;
-    }
 
-    // Criar e inicializar memória partilhada
     HANDLE hMap = CreateFileMapping(
         INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
-        0, sizeof(MemoriaPartilhada), MEMORIA_PARTILHADA_NAME);
+        0, sizeof(MemoriaPartilhada), MEMORIA_PARTILHADA_NAME_TESTE);
     if (!hMap)
-    {
-        _tprintf(TEXT("[ERRO] CreateFileMapping falhou.\n"));
         return 1;
-    }
 
     MemoriaPartilhada *mem = (MemoriaPartilhada *)MapViewOfFile(
         hMap, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MemoriaPartilhada));
-    if (!mem)
-    {
-        _tprintf(TEXT("[ERRO] MapViewOfFile falhou.\n"));
+    if (!mem) {
         CloseHandle(hMap);
         return 1;
     }
 
-    // assign the global pointer
     g_mem = mem;
 
     mem->numJogadores = 0;
-    for (int i = 0; i < MAX_JOGADORES; i++)
-    {
+    for (int i = 0; i < MAX_JOGADORES; i++) {
         mem->jogadores[i].ativo = FALSE;
         mem->jogadores[i].pontuacao = 0;
         mem->jogadores[i].username[0] = TEXT('\0');
     }
 
-    // Inicializa vetor com as letras
-    for (int i = 0; i < MAXLETRAS; i++)
-    {
+    for (int i = 0; i < MAXLETRAS; i++) {
         mem->letras[i] = TEXT('_');
         mem->estado[i] = 0;
     }
     mem->ultima_palavra[0] = TEXT('\0');
 
-    // **2)** Lança a Thread que fica a gerar letras a cada    !!!!!!!! RITMO segundos
     srand((unsigned)time(NULL));
-
-    // pré-enche as MAXLETRAS primeiras posições
-    for (int i = 0; i < MAXLETRAS; ++i)
-    {
+    for (int i = 0; i < MAXLETRAS; ++i) {
 #ifdef UNICODE
         mem->letras[i] = (TCHAR)(L'A' + (rand() % 26));
 #else
@@ -567,19 +660,12 @@ int _tmain(int argc, LPTSTR argv[])
     }
 
     HANDLE hLetterThread = CreateThread(
-        NULL, 0,
-        LetterThread,
-        mem, // passa o ponteiro para a memória partilhada
-        0, NULL);
+        NULL, 0, LetterThread, mem, 0, NULL);
     if (!hLetterThread)
-    {
         _tprintf(TEXT("[ERRO] não conseguiu criar LetterThread\n"));
-    }
 
-    // Loop principal: cria uma instância por cliente
     while (WaitForSingleObject(hShutdownEvent, 0) != WAIT_OBJECT_0)
     {
-        // 1) Cria instância do pipe
         HANDLE hPipe = CreateNamedPipe(
             ARBITRO_PIPE_NAME,
             PIPE_ACCESS_DUPLEX,
@@ -589,17 +675,14 @@ int _tmain(int argc, LPTSTR argv[])
         if (hPipe == INVALID_HANDLE_VALUE)
             break;
 
-        // 2) Aguarda ligação
         BOOL ok = ConnectNamedPipe(hPipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED;
-        if (!ok)
-        {
+        if (!ok) {
             CloseHandle(hPipe);
             continue;
         }
-        
+
         _tprintf(TEXT("[SISTEMA] Nova conexão de cliente recebida!\n"));
 
-        // 3) Despacha thread para tratar o cliente
         CLIENT_PARAM *cp = malloc(sizeof(*cp));
         cp->hPipe = hPipe;
         cp->mem = mem;
@@ -607,26 +690,9 @@ int _tmain(int argc, LPTSTR argv[])
         if (hThread)
             CloseHandle(hThread);
         else
-        {
-            // Limpeza final
-            UnmapViewOfFile(mem);
-            CloseHandle(hMap);
-            ReleaseMutex(hMutex);
-            CloseHandle(hMutex);
-            CloseHandle(hAdminThread);
-            CloseHandle(hLetterThread);
-            CloseHandle(hShutdownEvent);
-            DeleteCriticalSection(&csJogadores);
-
-            // Apagar a memória partilhada
-            DeleteCriticalSection(&csJogadores);
-
-            return 0;
-        }
-        
+            break;
     }
 
-    // Limpeza final
     UnmapViewOfFile(mem);
     CloseHandle(hMap);
     ReleaseMutex(hMutex);

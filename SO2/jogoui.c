@@ -115,7 +115,7 @@ int _tmain(int argc, LPTSTR argv[]) {
     HANDLE hMap = OpenFileMapping(
         FILE_MAP_READ,      // só leitura
         FALSE,              // não herda handle
-        MEMORIA_PARTILHADA_NAME
+        MEMORIA_PARTILHADA_NAME_TESTE
     );
     if (!hMap) {
         _tprintf(TEXT("Erro: Memória partilhada não existe. O árbitro deve estar a correr.\n"));

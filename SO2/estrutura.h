@@ -12,7 +12,7 @@
 
 // Nomes usados por todas as aplica��es
 #define ARBITRO_MUTEX_NAME  TEXT("SO2_Arbitro")
-#define MEMORIA_PARTILHADA_NAME  TEXT("SO2_LetrasVisiveis")
+#define MEMORIA_PARTILHADA_NAME_TESTE  TEXT("SO2_LetrasVisiveis")
 #define ARBITRO_PIPE_NAME   TEXT("\\\\.\\pipe\\SO2_ArbitroPipe")
 
 
