@@ -106,8 +106,57 @@ BOOL excludePlayer(const TCHAR *username)
 }
 BOOL startBot(const TCHAR *botName)
 {
-    _tprintf(TEXT("[ADMIN] iniciarbot %s  - lançou bot automático\n"), botName);
-    return TRUE;
+    // Verifica se o nome já existe
+    EnterCriticalSection(&csJogadores);
+    for (int i = 0; i < MAX_JOGADORES; i++)
+    {
+        if (g_mem->jogadores[i].ativo && _tcscmp(g_mem->jogadores[i].username, botName) == 0)
+        {
+            LeaveCriticalSection(&csJogadores);
+            _tprintf(TEXT("[ADMIN] iniciarbot %s - ERRO: Username já existe\n"), botName);
+            return FALSE;
+        }
+    }
+    LeaveCriticalSection(&csJogadores);
+
+    // Gera tempo de reação aleatório entre 5 e 30 segundos
+    int tempoReacao = 5 + (rand() % 26); // 5-30 segundos
+
+    // Prepara linha de comando para o bot
+    TCHAR cmdLine[256];
+    _stprintf(cmdLine, TEXT("bot.exe \"%s\" %d"), botName, tempoReacao);
+
+    // Lança o processo bot
+    STARTUPINFO si = {0};
+    PROCESS_INFORMATION pi = {0};
+    si.cb = sizeof(si);
+
+    if (CreateProcess(
+        TEXT("bot.exe"),     // nome do executável
+        cmdLine,             // linha de comando
+        NULL,                // security attributes do processo
+        NULL,                // security attributes da thread
+        FALSE,               // herdar handles
+        0,                   // flags de criação
+        NULL,                // environment
+        NULL,                // diretório atual
+        &si,                 // startup info
+        &pi))                // process info
+    {
+        // Fecha handles - não precisamos de monitorizar o processo
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        
+        _tprintf(TEXT("[ADMIN] iniciarbot %s - Bot lançado (tempo de reacao: %ds)\n"), 
+                 botName, tempoReacao);
+        return TRUE;
+    }
+    else
+    {
+        _tprintf(TEXT("[ADMIN] iniciarbot %s - ERRO: Falha ao iniciar bot (%d)\n"), 
+                 botName, GetLastError());
+        return FALSE;
+    }
 }
 void changeCadencia(int delta)
 {
@@ -238,8 +287,8 @@ DWORD WINAPI LetterThread(LPVOID p)
             mem->estado[posicaoMaisAntiga] = 1;
             mem->timestamp[posicaoMaisAntiga] = agora;
             
-            _tprintf(TEXT("[SISTEMA] Letra '%c' substituiu letra '%c' (posição %d)\n"), 
-                     nova, mem->letras[posicaoMaisAntiga], posicaoMaisAntiga);
+            //_tprintf(TEXT("[DEBUG] Letra '%c' substituiu letra '%c' (posição %d)\n"), 
+            //         nova, mem->letras[posicaoMaisAntiga], posicaoMaisAntiga);
         }
     }
     return 0;
@@ -360,14 +409,14 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 for (int i = 0; i < numLetrasUsadas; i++)
                 {
                     int pos = posicoesSelecionadas[i];
-                    mem->estado[pos] = 0;  // marca como não disponível
-                    mem->letras[pos] = '_'; // opcional
+                    mem->estado[pos] = 0;
+                    mem->letras[pos] = '_';
                     mem->timestamp[pos] = 0;
                 }
 
-                pontuacao += tamPalavra; // +1 ponto por letra
+                pontuacao += tamPalavra;
                 resp.tipo = MSG_SUCESSO;
-                _stprintf(resp.conteudo, TEXT("Palavra válida! +%.1f pontos"), tamPalavra);
+                _stprintf(resp.conteudo, TEXT("Palavra válida! +%.1f pontos"), (float)tamPalavra); // CORRIGE AQUI
                 resp.pontuacao = pontuacao;
 
                 // Atualiza última palavra jogada
@@ -394,7 +443,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 float desconto = tamPalavra * 0.5f;
                 pontuacao -= desconto;
                 resp.tipo = MSG_ERRO;
-                _stprintf(resp.conteudo, TEXT("Palavra inválida! -%.1f pontos"), desconto);
+                _stprintf(resp.conteudo, TEXT("Palavra inválida! -%.1f pontos"), desconto); // Já estava correto
                 resp.pontuacao = pontuacao;
 
                 // Atualiza pontuação na lista de jogadores
