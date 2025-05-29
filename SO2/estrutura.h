@@ -10,7 +10,7 @@
 #define MAX_JOGADORES       20
 #define MAXLETRAS           12
 
-// Nomes usados por todas as aplicações
+// Nomes usados por todas as aplicaï¿½ï¿½es
 #define ARBITRO_MUTEX_NAME  TEXT("SO2_Arbitro")
 #define MEMORIA_PARTILHADA_NAME  TEXT("SO2_LetrasVisiveis")
 #define ARBITRO_PIPE_NAME   TEXT("\\\\.\\pipe\\SO2_ArbitroPipe")
@@ -19,12 +19,14 @@
 // Tipos de mensagem para pipe
 typedef enum {
     MSG_ENTRAR,      // pedido de entrada
-    MSG_SAIR,        // pedido de saída
+    MSG_SAIR,        // pedido de saï¿½da
     MSG_PALAVRA,     // tentativa de palavra
-    MSG_PONTUACAO,   // pedido de pontuação
+    MSG_PONTUACAO,   // pedido de pontuaï¿½ï¿½o
     MSG_JOGADORES,   // pedido de lista de jogadores
-    MSG_INFO,        // aviso do árbitro
-    MSG_RESPOSTA     // resposta geral
+    MSG_INFO,        // aviso do ï¿½rbitro
+    MSG_RESPOSTA,     // resposta geral
+    MSG_SUCESSO,
+    MSG_ERRO
 } TipoMensagem;
 
 // Estrutura de mensagem Unicode com TCHAR
@@ -35,16 +37,26 @@ typedef struct {
     int          pontuacao;
 } Mensagem;
 
-// Estrutura de memória partilhada
+typedef struct {
+    TCHAR username[32];
+    int pontuacao;
+    BOOL ativo;
+    DWORD lastActivity; // timestamp da Ãºltima atividade
+} Jogador;
+
+// Estrutura de memï¿½ria partilhada
 typedef struct {
     TCHAR letras[MAXLETRAS];
     int   estado[MAXLETRAS];
     TCHAR ultima_palavra[MAX_PALAVRA];
+    Jogador jogadores[MAX_JOGADORES];
+    int numJogadores;
+    CRITICAL_SECTION csJogadores; // sincronizaÃ§Ã£o de acesso
 } MemoriaPartilhada;
 
-// Parâmetros passados à thread que atende cada cliente
+// Parï¿½metros passados ï¿½ thread que atende cada cliente
 typedef struct {
     HANDLE             hPipe;  // handle do named pipe
-    MemoriaPartilhada* mem;    // ponteiro para a memória partilhada
+    MemoriaPartilhada* mem;    // ponteiro para a memï¿½ria partilhada
 } CLIENT_PARAM;
 #endif // ESTRUTURA_H

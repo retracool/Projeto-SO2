@@ -1,4 +1,5 @@
-﻿#ifndef UNICODE
+﻿#define _CRT_SECURE_NO_WARNINGS
+#ifndef UNICODE
 #define UNICODE
 #endif
 #ifndef _UNICODE
@@ -73,9 +74,19 @@ int _tmain(int argc, LPTSTR argv[]) {
     // 4) Lê e imprime as letras visíveis
     _tprintf(TEXT("Letras visíveis:\n"));
     for (int i = 0; i < MAXLETRAS; ++i) {
-        char c = mem->letras[i];
-        // converte para wide-char para imprimir
-        TCHAR out[2] = { (c == '\0' || c == '_') ? TEXT('_') : (TCHAR)c, TEXT('\0') };
+        TCHAR out[2] = { 0, 0 };
+
+#ifdef UNICODE
+        if (mem->letras[i] == '\0' || mem->letras[i] == '_') {
+            out[0] = L'_';
+        }
+        else {
+            MultiByteToWideChar(CP_ACP, 0, &mem->letras[i], 1, out, 1);
+        }
+#else
+        out[0] = (mem->letras[i] == '\0' || mem->letras[i] == '_') ? '_' : mem->letras[i];
+#endif
+
         _tprintf(TEXT("%s "), out);
     }
     _tprintf(TEXT("\n"));
@@ -87,6 +98,21 @@ int _tmain(int argc, LPTSTR argv[]) {
     _tcsncpy(msg.username, username, MAX_USERNAME - 1);
     DWORD written;
     WriteFile(hPipe, &msg, sizeof(msg), &written, NULL);
+
+    _tprintf(TEXT("DEBUG: MSG_ENTRAR = %d\n"), MSG_ENTRAR);
+
+    // Recebe resposta
+    Mensagem resp;
+    DWORD readBytes;
+    if (ReadFile(hPipe, &resp, sizeof(resp), &readBytes, NULL) && readBytes == sizeof(resp)) {
+        _tprintf(TEXT("[ÁRBITRO] %s\n"), resp.conteudo);
+        if (resp.tipo == MSG_PONTUACAO) {
+            _tprintf(TEXT(" (pontos: %d)"), resp.pontuacao);
+        }
+    } else {
+        _tprintf(TEXT("[JOGADOR] Conexão encerrada pelo árbitro.\n"));
+        return 1;
+    }
 
     // Loop de I/O
     TCHAR linha[256];
@@ -122,8 +148,6 @@ int _tmain(int argc, LPTSTR argv[]) {
         WriteFile(hPipe, &msg, sizeof(msg), &written, NULL);
 
         // Recebe resposta
-        Mensagem resp;
-        DWORD    readBytes;
         if (!ReadFile(hPipe, &resp, sizeof(resp), &readBytes, NULL)
             || readBytes != sizeof(resp)) {
             _tprintf(TEXT("[JOGADOR] Conexão encerrada pelo árbitro.\n"));
