@@ -189,6 +189,7 @@ DWORD WINAPI AdminThread(LPVOID lpParam)
 DWORD WINAPI LetterThread(LPVOID p)
 {
     MemoriaPartilhada *mem = (MemoriaPartilhada *)p;
+    
     while (WaitForSingleObject(hShutdownEvent, RITMO * 1000) == WAIT_TIMEOUT)
     {
 #ifdef UNICODE
@@ -197,20 +198,49 @@ DWORD WINAPI LetterThread(LPVOID p)
         char nova = 'A' + (rand() % 26);
 #endif
 
-        // insere em primeiro slot livre
+        DWORD agora = GetTickCount();
+
+        // Procura primeira posição livre (estado = 0)
+        int posicaoLivre = -1;
         for (int i = 0; i < MAXLETRAS; ++i)
         {
             if (mem->estado[i] == 0)
             {
-                mem->letras[i] = nova;
-                mem->estado[i] = 1;
-                goto next;
+                posicaoLivre = i;
+                break;
             }
         }
-        // se não houver slot livre, recicla posição 0
-        mem->letras[0] = nova;
-        mem->estado[0] = 1;
-    next:;
+
+        if (posicaoLivre != -1)
+        {
+            // Há espaço livre - usa essa posição
+            mem->letras[posicaoLivre] = nova;
+            mem->estado[posicaoLivre] = 1;
+            mem->timestamp[posicaoLivre] = agora;
+        }
+        else
+        {
+            // Não há espaço livre - encontra a letra mais antiga
+            DWORD timestampMaisAntigo = agora;
+            int posicaoMaisAntiga = 0;
+            
+            for (int i = 0; i < MAXLETRAS; i++)
+            {
+                if (mem->estado[i] == 1 && mem->timestamp[i] < timestampMaisAntigo)
+                {
+                    timestampMaisAntigo = mem->timestamp[i];
+                    posicaoMaisAntiga = i;
+                }
+            }
+            
+            // Substitui a letra mais antiga
+            mem->letras[posicaoMaisAntiga] = nova;
+            mem->estado[posicaoMaisAntiga] = 1;
+            mem->timestamp[posicaoMaisAntiga] = agora;
+            
+            _tprintf(TEXT("[SISTEMA] Letra '%c' substituiu letra '%c' (posição %d)\n"), 
+                     nova, mem->letras[posicaoMaisAntiga], posicaoMaisAntiga);
+        }
     }
     return 0;
 }
@@ -332,6 +362,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                     int pos = posicoesSelecionadas[i];
                     mem->estado[pos] = 0;  // marca como não disponível
                     mem->letras[pos] = '_'; // opcional
+                    mem->timestamp[pos] = 0;
                 }
 
                 pontuacao += tamPalavra; // +1 ponto por letra
@@ -684,20 +715,27 @@ int _tmain(int argc, LPTSTR argv[])
         mem->jogadores[i].username[0] = TEXT('\0');
     }
 
+    // Inicializa todas as posições como vazias
     for (int i = 0; i < MAXLETRAS; i++) {
         mem->letras[i] = TEXT('_');
         mem->estado[i] = 0;
+        mem->timestamp[i] = 0;
     }
     mem->ultima_palavra[0] = TEXT('\0');
 
     srand((unsigned)time(NULL));
-    for (int i = 0; i < MAXLETRAS; ++i) {
+    
+    // Pré-enche apenas algumas posições iniciais (não todas)
+    int letrasIniciais = MAXLETRAS / 2; // Começa com metade das letras
+    DWORD timestampInicial = GetTickCount();
+    for (int i = 0; i < letrasIniciais; ++i) {
 #ifdef UNICODE
         mem->letras[i] = (TCHAR)(L'A' + (rand() % 26));
 #else
         mem->letras[i] = 'A' + (rand() % 26);
 #endif
         mem->estado[i] = 1;
+        mem->timestamp[i] = timestampInicial + (i * 100);
     }
 
     HANDLE hLetterThread = CreateThread(

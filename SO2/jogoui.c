@@ -35,6 +35,18 @@ BOOL WINAPI CtrlHandler(DWORD ctrlType) {
     return FALSE;
 }
 
+// Função para mostrar letras atualizadas
+void MostrarLetrasAtuais(MemoriaPartilhada* mem) {
+    _tprintf(TEXT("Letras visíveis:\n"));
+    for (int i = 0; i < MAXLETRAS; ++i) {
+        if (mem->estado[i] == 1) {
+            _tprintf(TEXT("%c "), mem->letras[i]);
+        } else {
+            _tprintf(TEXT("_ "));
+        }
+    }
+    _tprintf(TEXT("\n"));
+}
 
 int _tmain(int argc, LPTSTR argv[]) {
 
@@ -141,9 +153,10 @@ int _tmain(int argc, LPTSTR argv[]) {
     // 4) Lê e imprime as letras visíveis
     _tprintf(TEXT("Letras visíveis:\n"));
     for (int i = 0; i < MAXLETRAS; ++i) {
-        // Só mostra letras que estão disponíveis (estado = 1)
         if (mem->estado[i] == 1) {
             _tprintf(TEXT("%c "), mem->letras[i]);
+        } else {
+            _tprintf(TEXT("_ ")); // Mostra espaços vazios explicitamente
         }
     }
     _tprintf(TEXT("\n"));
@@ -203,9 +216,14 @@ int _tmain(int argc, LPTSTR argv[]) {
             _tprintf(TEXT(" (pontos: %.1f)"), resp.pontuacao);
         }
         _tprintf(TEXT("\n"));
+        
+        // Mostra letras atualizadas após cada jogada
+        MostrarLetrasAtuais(mem);
     }
 
     UnmapViewOfFile(mem);
     CloseHandle(hPipe);
     return 0;
 }
+
+

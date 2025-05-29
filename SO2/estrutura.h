@@ -44,10 +44,11 @@ typedef struct {
     DWORD lastActivity; // timestamp da última atividade
 } Jogador;
 
-// Estrutura de mem�ria partilhada
+// Estrutura de memória partilhada
 typedef struct {
     TCHAR letras[MAXLETRAS];
     int   estado[MAXLETRAS];
+    DWORD timestamp[MAXLETRAS]; 
     TCHAR ultima_palavra[MAX_PALAVRA];
     Jogador jogadores[MAX_JOGADORES];
     int numJogadores;
