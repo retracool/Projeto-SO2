@@ -61,9 +61,14 @@ int _tmain(int argc, LPTSTR argv[]) {
     username[MAX_USERNAME - 1] = TEXT('\0');
     _tcsncpy(g_username, username, MAX_USERNAME - 1);
     g_username[MAX_USERNAME - 1] = TEXT('\0');
-    // Aguarda pipe
-    if (!WaitNamedPipe(ARBITRO_PIPE_NAME, NMPWAIT_WAIT_FOREVER)) {
-        _tprintf(TEXT("[JOGADOR] Árbitro não está ativo.\n"));
+    // Aguarda pipe com timeout
+    if (!WaitNamedPipe(ARBITRO_PIPE_NAME, 5000)) { // 5 segundos timeout
+        DWORD error = GetLastError();
+        if (error == ERROR_SEM_TIMEOUT) {
+            _tprintf(TEXT("[JOGADOR] Árbitro não responde (timeout).\n"));
+        } else {
+            _tprintf(TEXT("[JOGADOR] Árbitro não está ativo.\n"));
+        }
         return 1;
     }
 
@@ -89,7 +94,7 @@ int _tmain(int argc, LPTSTR argv[]) {
     DWORD written;
     WriteFile(hPipe, &msg, sizeof(msg), &written, NULL);
 
-    _tprintf(TEXT("DEBUG: MSG_ENTRAR = %d\n"), MSG_ENTRAR);
+    //_tprintf(TEXT("DEBUG: MSG_ENTRAR = %d\n"), MSG_ENTRAR);
 
 	// Recebe resposta para ver se foi aceite ou nao pea o árbitro
 
@@ -102,7 +107,7 @@ int _tmain(int argc, LPTSTR argv[]) {
             return 0;   // ou exit(0);
         }
         if (resp.tipo == MSG_PONTUACAO) {
-            _tprintf(TEXT(" (pontos: %d)"), resp.pontuacao);
+            _tprintf(TEXT(" (pontos: %.1f)"), resp.pontuacao);
         }
     }
     else {
@@ -115,7 +120,7 @@ int _tmain(int argc, LPTSTR argv[]) {
     HANDLE hMap = OpenFileMapping(
         FILE_MAP_READ,      // só leitura
         FALSE,              // não herda handle
-        MEMORIA_PARTILHADA_NAME_TESTE
+        MEMORIA_PARTILHADA_NAME
     );
     if (!hMap) {
         _tprintf(TEXT("Erro: Memória partilhada não existe. O árbitro deve estar a correr.\n"));
@@ -136,20 +141,10 @@ int _tmain(int argc, LPTSTR argv[]) {
     // 4) Lê e imprime as letras visíveis
     _tprintf(TEXT("Letras visíveis:\n"));
     for (int i = 0; i < MAXLETRAS; ++i) {
-        TCHAR out[2] = { 0, 0 };
-
-#ifdef UNICODE
-        if (mem->letras[i] == '\0' || mem->letras[i] == '_') {
-            out[0] = L'_';
+        // Só mostra letras que estão disponíveis (estado = 1)
+        if (mem->estado[i] == 1) {
+            _tprintf(TEXT("%c "), mem->letras[i]);
         }
-        else {
-            MultiByteToWideChar(CP_ACP, 0, &mem->letras[i], 1, out, 1);
-        }
-#else
-        out[0] = (mem->letras[i] == '\0' || mem->letras[i] == '_') ? '_' : mem->letras[i];
-#endif
-
-        _tprintf(TEXT("%s "), out);
     }
     _tprintf(TEXT("\n"));
 
@@ -196,9 +191,16 @@ int _tmain(int argc, LPTSTR argv[]) {
             break;
         }
 
+        // VERIFICAÇÃO DE ENCERRAMENTO
+        if (resp.tipo == MSG_ERRO && _tcsstr(resp.conteudo, TEXT("Servidor a encerrar")) != NULL) {
+            _tprintf(TEXT("[ÁRBITRO] %s\n"), resp.conteudo);
+            _tprintf(TEXT("[JOGADOR] O jogo foi encerrado.\n"));
+            break;
+        }
+
         _tprintf(TEXT("[ÁRBITRO] %s"), resp.conteudo);
         if (resp.tipo == MSG_PONTUACAO) {
-            _tprintf(TEXT(" (pontos: %d)"), resp.pontuacao);
+            _tprintf(TEXT(" (pontos: %.1f)"), resp.pontuacao);
         }
         _tprintf(TEXT("\n"));
     }

@@ -78,7 +78,7 @@ void listPlayers(void)
     {
         if (g_mem->jogadores[i].ativo)
         {
-            _tprintf(TEXT("- %s: %d pontos\n"), g_mem->jogadores[i].username, g_mem->jogadores[i].pontuacao);
+            _tprintf(TEXT("- %s: %.1f pontos\n"), g_mem->jogadores[i].username, g_mem->jogadores[i].pontuacao);
             count++;
         }
     }
@@ -222,14 +222,32 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
     MemoriaPartilhada *mem = p->mem;
     free(p);
 
+    // VERIFICAÇÃO DE SHUTDOWN NO INÍCIO
+    if (WaitForSingleObject(hShutdownEvent, 0) == WAIT_OBJECT_0) {
+        Mensagem resp = { MSG_ERRO, {0}, TEXT("Servidor a encerrar..."), 0 };
+        DWORD bytes;
+        WriteFile(hPipe, &resp, sizeof(resp), &bytes, NULL);
+        DisconnectNamedPipe(hPipe);
+        CloseHandle(hPipe);
+        return 0;
+    }
+
     _tprintf(TEXT("[SISTEMA] Thread de cliente iniciada\n"));
 
     Mensagem msg, resp;
     DWORD bytes;
-    int pontuacao = 0; // Pontuação do jogador
+    float pontuacao = 0;
 
     while (ReadFile(hPipe, &msg, sizeof(msg), &bytes, NULL) && bytes == sizeof(msg))
     {
+        // VERIFICA SHUTDOWN A CADA CICLO
+        if (WaitForSingleObject(hShutdownEvent, 0) == WAIT_OBJECT_0) {
+            Mensagem shutdownResp = { MSG_ERRO, {0}, TEXT("Servidor a encerrar..."), 0 };
+            _tcscpy(shutdownResp.username, msg.username);
+            WriteFile(hPipe, &shutdownResp, sizeof(shutdownResp), &bytes, NULL);
+            goto cleanup;
+        }
+
         ZeroMemory(&resp, sizeof(resp));
         _tcscpy(resp.username, msg.username);
 
@@ -262,69 +280,63 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
             break;
 
         case MSG_PALAVRA:
-
-            // DEBUG: Mostra as letras disponíveis
-            _tprintf(TEXT("[DEBUG] Letras disponíveis: "));
-            for (int k = 0; k < MAXLETRAS; k++)
-            {
-                _tprintf(TEXT("'%c'(%d) "), mem->letras[k], (int)mem->letras[k]);
-            }
-            _tprintf(TEXT("\n"));
-            _tprintf(TEXT("[DEBUG] Palavra recebida: '%s'\n"), msg.conteudo);
-
             // Validar se a palavra pode ser formada com as letras disponíveis
             BOOL palavraValida = TRUE;
             TCHAR letrasTmp[MAXLETRAS];
+            int posicoesSelecionadas[MAXLETRAS]; // Para guardar as posições das letras usadas
+            int numLetrasUsadas = 0;
+            
             memcpy(letrasTmp, mem->letras, MAXLETRAS * sizeof(TCHAR));
 
             for (int i = 0; msg.conteudo[i] != '\0'; i++)
             {
                 BOOL encontrou = FALSE;
                 TCHAR letraProcurada = _totupper(msg.conteudo[i]);
-                _tprintf(TEXT("[DEBUG] Procurando letra: '%c'(%d)\n"), letraProcurada, (int)letraProcurada);
 
                 for (int j = 0; j < MAXLETRAS; j++)
                 {
-                    //_tprintf(TEXT("[DEBUG] Comparando com '%c'(%d) na posição %d\n"),
-                    //         letrasTmp[j], (int)letrasTmp[j], j);
-                    if (letraProcurada == _totupper(letrasTmp[j]))
+                    if (mem->estado[j] == 1 && letraProcurada == _totupper(letrasTmp[j]))
                     {
-                        _tprintf(TEXT("[DEBUG] Encontrou '%c' na posição %d\n"), letrasTmp[j], j);
-                        letrasTmp[j] = '_'; // marca como usada
+                        letrasTmp[j] = '_'; // marca temporariamente como usada
+                        posicoesSelecionadas[numLetrasUsadas] = j; // guarda a posição
+                        numLetrasUsadas++;
                         encontrou = TRUE;
                         break;
                     }
                 }
                 if (!encontrou)
                 {
-                    _tprintf(TEXT("[DEBUG] Letra '%c' NÃO encontrada!\n"), letraProcurada);
                     palavraValida = FALSE;
                     break;
                 }
             }
+
+            int tamPalavra = (int)_tcslen(msg.conteudo);
 
             // Verifica se a palavra está no dicionário (se carregado)
             if (palavraValida && dictionarySize > 0)
             {
                 if (!IsWordInDictionary(msg.conteudo))
                 {
-                    _tprintf(TEXT("[DEBUG] Palavra '%s' não está no dicionário\n"), msg.conteudo);
                     palavraValida = FALSE;
                     resp.tipo = MSG_ERRO;
                     _tcscpy(resp.conteudo, TEXT("Palavra não encontrada no dicionário!"));
-                }
-                else
-                {
-                    _tprintf(TEXT("[DEBUG] Palavra '%s' encontrada no dicionário\n"), msg.conteudo);
                 }
             }
 
             if (palavraValida)
             {
-                pontuacao += _tcslen(msg.conteudo);
+                // Remove as letras usadas da memória partilhada
+                for (int i = 0; i < numLetrasUsadas; i++)
+                {
+                    int pos = posicoesSelecionadas[i];
+                    mem->estado[pos] = 0;  // marca como não disponível
+                    mem->letras[pos] = '_'; // opcional
+                }
+
+                pontuacao += tamPalavra; // +1 ponto por letra
                 resp.tipo = MSG_SUCESSO;
-                _stprintf(resp.conteudo, TEXT("Palavra válida! +%d pontos"),
-                          (int)_tcslen(msg.conteudo));
+                _stprintf(resp.conteudo, TEXT("Palavra válida! +%.1f pontos"), tamPalavra);
                 resp.pontuacao = pontuacao;
 
                 // Atualiza última palavra jogada
@@ -336,16 +348,35 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 {
                     if (mem->jogadores[i].ativo && _tcscmp(mem->jogadores[i].username, msg.username) == 0)
                     {
-                        mem->jogadores[i].pontuacao += _tcslen(msg.conteudo);
+                        mem->jogadores[i].pontuacao += tamPalavra;
                         break;
                     }
                 }
                 LeaveCriticalSection(&csJogadores);
+
+                _tprintf(TEXT("[SISTEMA] Jogador %s usou %d letras. Letras removidas.\n"), 
+                         msg.username, numLetrasUsadas);
             }
-            else if (resp.tipo != MSG_ERRO)
+            else
             {
+                // Palavra errada: desconta meio ponto por letra
+                float desconto = tamPalavra * 0.5f;
+                pontuacao -= desconto;
                 resp.tipo = MSG_ERRO;
-                _tcscpy(resp.conteudo, TEXT("Palavra inválida!"));
+                _stprintf(resp.conteudo, TEXT("Palavra inválida! -%.1f pontos"), desconto);
+                resp.pontuacao = pontuacao;
+
+                // Atualiza pontuação na lista de jogadores
+                EnterCriticalSection(&csJogadores);
+                for (int i = 0; i < MAX_JOGADORES; i++)
+                {
+                    if (mem->jogadores[i].ativo && _tcscmp(mem->jogadores[i].username, msg.username) == 0)
+                    {
+                        mem->jogadores[i].pontuacao -= desconto;
+                        break;
+                    }
+                }
+                LeaveCriticalSection(&csJogadores);
             }
             break;
 
@@ -365,7 +396,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 if (mem->jogadores[i].ativo)
                 {
                     TCHAR linha[64];
-                    _stprintf(linha, TEXT("%s(%d pontos) "), mem->jogadores[i].username, mem->jogadores[i].pontuacao);
+                    _stprintf(linha, TEXT("%s(%.1f pontos) "), mem->jogadores[i].username, mem->jogadores[i].pontuacao);
                     _tcscat(buffer, linha);
                     count++;
                 }
@@ -393,16 +424,26 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
                 if (mem->jogadores[i].ativo && _tcscmp(mem->jogadores[i].username, msg.username) == 0)
                 {
                     mem->jogadores[i].ativo = FALSE;
+                    mem->numJogadores--; // ADICIONA ESTA LINHA
                     break;
                 }
             }
+            
+            // Verificar se só resta 1 jogador ou menos
+            int jogadoresAtivos = 0;
+            for (int i = 0; i < MAX_JOGADORES; i++) {
+                if (mem->jogadores[i].ativo) jogadoresAtivos++;
+            }
             LeaveCriticalSection(&csJogadores);
-
-            // Verificar se só resta 1 jogador
-            if (contarJogadoresAtivos() <= 1)
-            {
-                _tprintf(TEXT("[SISTEMA] Apenas um jogador restante. Encerrando jogo...\n"));
+            
+            if (jogadoresAtivos <= 1) {
+                _tprintf(TEXT("[SISTEMA] Apenas %d jogador(es) restante(s). Encerrando jogo...\n"), jogadoresAtivos);
+                
+                // Sinaliza encerramento para todas as threads
                 signalShutdown();
+                
+                // Pequena pausa para permitir que as threads processem o shutdown
+                Sleep(500);
             }
             goto cleanup;
 
@@ -572,18 +613,18 @@ BOOL IsWordInDictionary(const TCHAR *word)
         upperWord[i] = _totupper(upperWord[i]);
     }
 
-    _tprintf(TEXT("[DEBUG] Procurando '%s' no dicionário...\n"), upperWord);
+    //_tprintf(TEXT("[DEBUG] Procurando '%s' no dicionário...\n"), upperWord);
 
     // Pesquisa linear
     for (int i = 0; i < dictionarySize; i++)
     {
         if (_tcscmp(dictionary[i], upperWord) == 0)
         {
-            _tprintf(TEXT("[DEBUG] Palavra encontrada no índice %d\n"), i);
+            //_tprintf(TEXT("[DEBUG] Palavra encontrada no índice %d\n"), i);
             return TRUE;
         }
     }
-    _tprintf(TEXT("[DEBUG] Palavra não encontrada\n"));
+    //_tprintf(TEXT("[DEBUG] Palavra não encontrada\n"));
     return FALSE;
 }
 
@@ -623,7 +664,7 @@ int _tmain(int argc, LPTSTR argv[])
 
     HANDLE hMap = CreateFileMapping(
         INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
-        0, sizeof(MemoriaPartilhada), MEMORIA_PARTILHADA_NAME_TESTE);
+        0, sizeof(MemoriaPartilhada), MEMORIA_PARTILHADA_NAME);
     if (!hMap)
         return 1;
 
@@ -675,10 +716,23 @@ int _tmain(int argc, LPTSTR argv[])
         if (hPipe == INVALID_HANDLE_VALUE)
             break;
 
+        // ADICIONA VERIFICAÇÃO AQUI
+        if (WaitForSingleObject(hShutdownEvent, 0) == WAIT_OBJECT_0) {
+            CloseHandle(hPipe);
+            break;
+        }
+
         BOOL ok = ConnectNamedPipe(hPipe, NULL) || GetLastError() == ERROR_PIPE_CONNECTED;
         if (!ok) {
             CloseHandle(hPipe);
             continue;
+        }
+
+        // VERIFICAÇÃO ADICIONAL ANTES DE CRIAR THREAD
+        if (WaitForSingleObject(hShutdownEvent, 0) == WAIT_OBJECT_0) {
+            DisconnectNamedPipe(hPipe);
+            CloseHandle(hPipe);
+            break;
         }
 
         _tprintf(TEXT("[SISTEMA] Nova conexão de cliente recebida!\n"));
@@ -692,6 +746,8 @@ int _tmain(int argc, LPTSTR argv[])
         else
             break;
     }
+
+    _tprintf(TEXT("[SISTEMA] Servidor a encerrar...\n"));
 
     UnmapViewOfFile(mem);
     CloseHandle(hMap);

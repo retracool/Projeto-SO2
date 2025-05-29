@@ -12,7 +12,7 @@
 
 // Nomes usados por todas as aplica��es
 #define ARBITRO_MUTEX_NAME  TEXT("SO2_Arbitro")
-#define MEMORIA_PARTILHADA_NAME_TESTE  TEXT("SO2_LetrasVisiveis")
+#define MEMORIA_PARTILHADA_NAME  TEXT("SO2_LetrasVisiveis")
 #define ARBITRO_PIPE_NAME   TEXT("\\\\.\\pipe\\SO2_ArbitroPipe")
 
 
@@ -34,12 +34,12 @@ typedef struct {
     TipoMensagem tipo;
     TCHAR        username[MAX_USERNAME];
     TCHAR        conteudo[MAX_PALAVRA];
-    int          pontuacao;
+    float          pontuacao;
 } Mensagem;
 
 typedef struct {
     TCHAR username[32];
-    int pontuacao;
+    float pontuacao;
     BOOL ativo;
     DWORD lastActivity; // timestamp da última atividade
 } Jogador;
